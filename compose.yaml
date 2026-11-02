@@ -1,0 +1,51 @@
+name: tienda-huaraz-api
+services:
+  db:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: tienda_huaraz
+      MYSQL_USER: tienda
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Ejecute npm run preparar}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Ejecute npm run preparar}
+    ports:
+      - "127.0.0.1:${DB_PUBLISHED_PORT:-3307}:3306"
+    volumes:
+      - datos_tienda:/var/lib/mysql
+      - ./sql:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysql --protocol=TCP -h127.0.0.1 -u$$MYSQL_USER -p$$MYSQL_PASSWORD -Dtienda_huaraz -e 'SELECT 1 FROM productos LIMIT 1' >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+  api:
+    build: .
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOST: 0.0.0.0
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_NAME: tienda_huaraz
+      DB_USER: tienda
+      DB_PASSWORD: ${DB_PASSWORD:?Ejecute npm run preparar}
+      JWT_SECRET: ${JWT_SECRET:?Ejecute npm run preparar}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1h}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      CONSULTA_EMAIL: ${CONSULTA_EMAIL}
+      CONSULTA_PASSWORD: ${CONSULTA_PASSWORD}
+    ports:
+      - "127.0.0.1:8080:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/salud').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+volumes:
+  datos_tienda:
